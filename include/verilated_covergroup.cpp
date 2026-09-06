@@ -134,6 +134,27 @@ void VlCoverCross::init(const char* hier, uint32_t dims, VlCoverpoint* const* cp
     m_flatCounts.assign(m_numAutoBins, 0);
 }
 
+void VlCoverCross::addBin(uint32_t dim, uint32_t first, uint32_t bins, const char* namep,
+                          const char* filep, int line, int col) {
+    if (!m_numAutoBins) return;  // An empty product creates no cross bin.
+    if (m_bins.empty()) m_autoExcluded.assign(m_numAutoBins, false);
+    m_bins.emplace_back(dim, first, bins, namep, filep, line, col);
+    // Visit only selected tuples. Multiple explicit bins may select the same tuple.
+    const uint64_t stride = m_stride[dim];
+    const uint64_t period = stride * m_cpBinCounts[dim];
+    for (uint64_t base = first * stride; base < m_numAutoBins; base += period) {
+        for (uint64_t flat = base; flat < base + bins * stride; ++flat) {
+            m_autoExcluded[flat] = true;
+        }
+    }
+}
+
+void VlCoverCross::finalizeBins() {
+    for (uint32_t flat = 0; flat < m_numAutoBins; ++flat) {
+        if (!m_autoExcluded[flat]) m_autoBins.push_back(flat);
+    }
+}
+
 void VlCoverCross::iterateProduct(VlCoverpoint* const* cps, uint32_t dim, uint32_t baseIdx) {
     const uint32_t hits = cps[dim]->hitCount();
     const uint32_t* const list = cps[dim]->hitList();
@@ -149,15 +170,31 @@ void VlCoverCross::iterateProduct(VlCoverpoint* const* cps, uint32_t dim, uint32
     }
 }
 
-void VlCoverCross::sample(VlCoverpoint* const* cps) {
+void VlCoverCross::sample(VlCoverpoint* const* cps, const bool* binIffs) {
     // Fast path: if any dimension had no Normal-bin hit, the cross cannot hit.
     for (uint32_t d = 0; d < m_dims; ++d) {
         if (cps[d]->hitCount() == 0) return;
     }
+    for (Bin& bin : m_bins) {
+        if (binIffs && !*binIffs++) continue;
+        const VlCoverpoint* const cpp = cps[bin.dim];
+        for (uint32_t hit = 0; hit < cpp->hitCount(); ++hit) {
+            const uint32_t idx = cpp->hitList()[hit];
+            if (idx >= bin.first && idx - bin.first < bin.bins) {
+                if (bin.count++ == 0) ++m_numCovered;
+                break;
+            }
+        }
+    }
     iterateProduct(cps, 0, 0);
 }
 
-std::string VlCoverCross::binName(uint32_t flat) const {
+std::string VlCoverCross::binName(uint32_t i) const {
+    if (i < m_bins.size()) return m_bins[i].namep;
+    return autoBinName(autoIndex(i - static_cast<uint32_t>(m_bins.size())));
+}
+
+std::string VlCoverCross::autoBinName(uint32_t flat) const {
     // Built on demand by concatenating each coverpoint's own bin name.
     std::string name;
     for (uint32_t d = 0; d < m_dims; ++d) {
@@ -170,12 +207,23 @@ std::string VlCoverCross::binName(uint32_t flat) const {
 
 #if VM_COVERAGE
 void VlCoverCross::registerBins(VerilatedCovContext* covcontextp, const char* page) {
-    // Register every auto cross bin (zero-count bins included), so the report
-    // shows the full Cartesian product of cross bins.  Names are built on the fly.
     const std::string lineStr = std::to_string(m_line);
     const std::string colStr = std::to_string(m_col);
-    for (uint32_t flat = 0; flat < binCount(); ++flat) {
-        const std::string bin = binName(flat);  // "b1_x_b2_x_..."
+    const uint32_t explicitCount = static_cast<uint32_t>(m_bins.size());
+    // Use the same indexed names for registration and the runtime read interface.
+    for (uint32_t i = 0; i < binCount(); ++i) {
+        const std::string bin = binName(i);
+        const std::string full = m_hier + "." + bin;
+        if (i < explicitCount) {
+            Bin& userBin = m_bins[i];
+            const std::string binLineStr = std::to_string(userBin.line);
+            const std::string binColStr = std::to_string(userBin.col);
+            VL_COVER_INSERT(covcontextp, full.c_str(), &userBin.count, "page", page, "filename",
+                            userBin.filep, "lineno", binLineStr.c_str(), "column",
+                            binColStr.c_str(), "bin", bin.c_str(), "cross", "1");
+            continue;
+        }
+        const uint32_t flat = autoIndex(i - explicitCount);
         // cross_bins metadata: the same components joined by ',' (not read by the report)
         std::string crossBins;
         for (uint32_t d = 0; d < m_dims; ++d) {
@@ -183,7 +231,6 @@ void VlCoverCross::registerBins(VerilatedCovContext* covcontextp, const char* pa
             if (d > 0) crossBins += ",";
             crossBins += m_cps[d]->normalBinName(crossIdx);
         }
-        const std::string full = m_hier + "." + bin;
         VL_COVER_INSERT(covcontextp, full.c_str(), &m_flatCounts[flat], "page", page, "filename",
                         m_file, "lineno", lineStr.c_str(), "column", colStr.c_str(), "bin",
                         bin.c_str(), "cross", "1", "cross_bins", crossBins.c_str());
