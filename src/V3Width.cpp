@@ -9928,7 +9928,7 @@ class WidthVisitor final : public VNVisitor {
             varp->isStatic(true);
             varp->valuep(initp);
             // Add to root, as don't know module we are in, and aids later structure sharing
-            v3Global.rootp()->dollarUnitPkgAddp()->addStmtsp(varp);
+            v3Global.rootp()->dollarUnitPkgp()->addStmtsp(varp);
             // Element 0 is a non-index and has speced values
             initp->addValuep(dimensionValue(nodep->fileline(), nodep, attrType, 0));
             for (unsigned i = 1; i < msbdim + 1; ++i) {
@@ -9997,7 +9997,7 @@ class WidthVisitor final : public VNVisitor {
             varp->isStatic(true);
             varp->valuep(initp);
             // Add to root, as don't know module we are in, and aids later structure sharing
-            v3Global.rootp()->dollarUnitPkgAddp()->addStmtsp(varp);
+            v3Global.rootp()->dollarUnitPkgp()->addStmtsp(varp);
 
             // Default for all unspecified values
             if (attrType == VAttrType::ENUM_NAME) {
@@ -10294,7 +10294,7 @@ class WidthVisitor final : public VNVisitor {
     }
     static AstVarRef* newVarRefDollarUnit(AstVar* nodep) {
         AstVarRef* const varrefp = new AstVarRef{nodep->fileline(), nodep, VAccess::READ};
-        varrefp->classOrPackagep(v3Global.rootp()->dollarUnitPkgAddp());
+        varrefp->classOrPackagep(v3Global.rootp()->dollarUnitPkgp());
         return varrefp;
     }
     AstNode* nodeForUnsizedWarning(AstNode* nodep) {
