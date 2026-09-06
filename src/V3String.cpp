@@ -395,9 +395,7 @@ uint64_t VString::hashMurmur(const string& str) VL_PURE {
     return h;
 }
 
-void VString::selfTest() {
-    UASSERT_SELFTEST(VString::replaceSubstr("aa", "a", "ba"), "baba");
-}
+void VString::selfTest() { UASSERT_SELFTEST(VString::replaceSubstr("aa", "a", "ba"), "baba"); }
 
 //######################################################################
 // VHashSha256
