@@ -854,6 +854,7 @@ inline std::ostream& operator<<(std::ostream& os, const VBranchPred& rhs) {
     macro(ARRAY_R_SUM,                        "r_sum",                  PURE,   "") \
     macro(ARRAY_R_XOR,                        "r_xor",                  PURE,   "") \
     macro(ARRAY_SHUFFLE,                      "shuffle",                false,  "") \
+    macro(ARRAY_SLICE,                        "slice",                  PURE,   "r") \
     macro(ARRAY_SORT,                         "sort",                   false,  "") \
     macro(ARRAY_UNIQUE,                       "unique",                 PURE,   "") \
     macro(ARRAY_UNIQUE_INDEX,                 "unique_index",           PURE,   "") \
